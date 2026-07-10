@@ -145,21 +145,19 @@ poc-lakehouse-food-latam/
 
 Calculadora oficial da Databricks ([databricks.com/product/pricing](https://www.databricks.com/product/pricing/product-pricing/instance-types)): `Premium` + `Lakeflow Jobs Serverless` + `SA (Brazil) — $0,46/DBU` + `60 DBUs`.
 
-![Simulação de custos - Databricks AWS](../docs/simulacao_custos_databricks_aws.png)
-
 **Resultado: US$ 27,60/mês** (custo isolado de DBU; neste modelo, Databricks e infraestrutura de nuvem são cobradas em faturas separadas)
 
-📄 Evidência completa: [`docs/evidencias/databricks_aws_estimate.pdf`](docs/evidencias/databricks_aws_estimate.pdf)
+📄 Evidência completa: [`docs/evidencias/Estimativa de custos AWS databricks.pdf`](<docs/evidencias/Estimativa de custos AWS databricks.pdf>)
 
 ### Simulação — Azure Databricks
 
 Calculadora do Azure ([azure.microsoft.com/pricing/calculator](https://azure.microsoft.com/en-us/pricing/calculator/)): `Jobs Compute Workload` + `Premium Tier` + `Brazil South` + `1x D4s v5 (4 vCPUs, 16 GB RAM)` + `15 horas/mês`.
 
-![Simulação de custos - Azure Databricks](../docs/simulacao_custos_azure_databricks.png)
-
 **Resultado: US$ 9,09/mês** (custo consolidado — Databricks + infraestrutura Azure em uma única fatura)
 
-📄 Evidência completa: [`docs/evidencias/azure_databricks_estimate.xlsx`](docs/evidencias/azure_databricks_estimate.xlsx)
+📄 Evidências completas:
+- [`docs/evidencias/Estimativa de custos Azure databricks.pdf`](<docs/evidencias/Estimativa de custos Azure databricks.pdf>)
+- [`docs/evidencias/ExportedEstimate.xlsx`](docs/evidencias/ExportedEstimate.xlsx)
 
 ### Por que os valores são diferentes entre AWS e Azure?
 
