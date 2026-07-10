@@ -74,7 +74,9 @@ O uso de SCD Tipo 2 permite reconstruir o contexto histórico de uma venda (ex: 
 - **fato_vendas** — grão: 1 linha = 1 item vendido por transação (produto, quantidade, valor, país, centro, representante, data)
 
 ### Câmbio
-- **dim_cambio** — tabela de apoio para conversão de moeda local (BRL, ARS, MXN) para USD (fonte: API externa em avaliação de conectividade, com fallback de tabela própria)
+- **dim_cambio** — tabela de apoio para conversão de moeda local (BRL, ARS, MXN) para USD
+- **Fonte primária:** API pública de câmbio ([exchangerate-api.com](https://www.exchangerate-api.com/)) — conectividade testada e validada dentro do Databricks Free Edition (chamadas HTTP externas funcionam normalmente no ambiente serverless)
+- **Estratégia de resiliência (fallback):** se a chamada à API falhar (timeout, rate limit, erro de status), o pipeline utiliza a **última cotação salva com sucesso** na tabela `dim_cambio`, marcando o registro como desatualizado, em vez de interromper a execução. Essa abordagem evita que uma falha de dependência externa quebre o pipeline inteiro — um padrão comum de resiliência em pipelines de produção.
 
 ---
 
