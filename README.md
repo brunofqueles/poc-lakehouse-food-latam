@@ -128,9 +128,47 @@ poc-lakehouse-food-latam/
 
 ## 💰 Estimativa de custos (simulação)
 
-> Como o projeto roda no **Databricks Free Edition**, o custo real é **zero**. Esta seção simula quanto o mesmo pipeline custaria em um ambiente de produção real (tier Premium), como exercício de FinOps para fins de portfólio.
+> O projeto roda integralmente no **Databricks Free Edition**, sem cloud provider fixo e com custo real **zero**. As simulações abaixo são um exercício hipotético de FinOps: "quanto este mesmo pipeline custaria se fosse implantado em produção, sobre Databricks com AWS ou sobre Azure Databricks?" — não indicam onde o projeto está de fato hospedado, apenas comparam como o billing se comporta em cada cloud provider.
 
-*(seção a ser preenchida com base na Databricks Pricing Calculator — Jobs Compute Serverless)*
+### Premissas da simulação
+
+| Parâmetro | Valor |
+|---|---|
+| Tier | Premium |
+| Tipo de compute | Lakeflow Jobs Serverless |
+| Volume de dados | ~13.500 linhas/dia (Brasil + México + Argentina) |
+| Execução diária estimada | ~30 minutos (6 tasks encadeadas) |
+| Execução mensal estimada | ~15 horas/mês (60 DBUs) |
+| Região | Brasil (SA/Brazil South) |
+
+### Simulação — Databricks sobre AWS
+
+Calculadora oficial da Databricks ([databricks.com/product/pricing](https://www.databricks.com/product/pricing/product-pricing/instance-types)): `Premium` + `Lakeflow Jobs Serverless` + `SA (Brazil) — $0,46/DBU` + `60 DBUs`.
+
+![Simulação de custos - Databricks AWS](../docs/simulacao_custos_databricks_aws.png)
+
+**Resultado: US$ 27,60/mês** (custo isolado de DBU; neste modelo, Databricks e infraestrutura de nuvem são cobradas em faturas separadas)
+
+📄 Evidência completa: [`docs/evidencias/databricks_aws_estimate.pdf`](docs/evidencias/databricks_aws_estimate.pdf)
+
+### Simulação — Azure Databricks
+
+Calculadora do Azure ([azure.microsoft.com/pricing/calculator](https://azure.microsoft.com/en-us/pricing/calculator/)): `Jobs Compute Workload` + `Premium Tier` + `Brazil South` + `1x D4s v5 (4 vCPUs, 16 GB RAM)` + `15 horas/mês`.
+
+![Simulação de custos - Azure Databricks](../docs/simulacao_custos_azure_databricks.png)
+
+**Resultado: US$ 9,09/mês** (custo consolidado — Databricks + infraestrutura Azure em uma única fatura)
+
+📄 Evidência completa: [`docs/evidencias/azure_databricks_estimate.xlsx`](docs/evidencias/azure_databricks_estimate.xlsx)
+
+### Por que os valores são diferentes entre AWS e Azure?
+
+A diferença (US$ 27,60 vs US$ 9,09) não significa que uma nuvem é "mais barata" de forma absoluta — reflete como cada provedor estrutura o billing do Databricks:
+
+- **AWS**: a calculadora da própria Databricks estima **apenas o custo de DBU**, sem incluir a VM de infraestrutura (que seria cobrada separadamente, direto na conta AWS)
+- **Azure**: a Databricks é um serviço de primeira parte da Microsoft, então a calculadora do Azure já apresenta o custo **consolidado** (DBU + VM) em uma única fatura
+
+Esse tipo de comparação evidencia domínio de um ponto real de mercado: entender como o modelo de billing muda conforme o cloud provider é uma habilidade de FinOps aplicada à Engenharia de Dados.
 
 ---
 
