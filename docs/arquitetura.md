@@ -126,7 +126,36 @@ Testamos a conectividade de saída do Databricks Free Edition com sucesso, confi
 
 ---
 
-## 9. Orquestração
+## 9. Governança e Controle de Acesso (RBAC) — Modelo Pretendido
+
+> **Nota de ambiente:** o Databricks Free Edition opera com um único usuário e não oferece administração multiusuário completa (Account Console com múltiplos membros/grupos). Por isso, o RBAC (Role-Based Access Control) abaixo é um **modelo de especificação** — representa como a governança de acesso seria implementada em um ambiente de produção real (tier Premium/Enterprise com múltiplos usuários), e não uma configuração tecnicamente ativa neste projeto.
+
+### Estrutura de Unity Catalog
+
+| Nível | Nome | Descrição |
+|---|---|---|
+| Catalog | `poc_latam_food` | Catalog raiz do projeto, contendo todas as camadas |
+| Schema | `landing` | Contém o Volume da Landing Zone (simulação do Blob externo) |
+| Schema | `bronze` / `silver` / `gold` | Tabelas Delta de cada camada da arquitetura Medallion |
+
+### Times e permissões pretendidas
+
+| Time | Papel no projeto | Permissões pretendidas |
+|---|---|---|
+| **Arquitetura** | Define padrões, aprova mudanças estruturais | `ALL PRIVILEGES` no catalog (admin) — criação/alteração de schemas, políticas de acesso, aprovação de mudanças de modelagem |
+| **Engenharia de Dados** | Constrói e mantém os pipelines | `USE CATALOG`, `USE SCHEMA`, `CREATE TABLE`, `MODIFY` em `landing`, `bronze` e `silver` — acesso de leitura/escrita nas camadas que constrói e mantém |
+| **Gestão / Negócio** | Consome métricas para tomada de decisão | `SELECT` (somente leitura) restrito ao schema `gold` — acesso apenas às métricas já consolidadas, sem visibilidade de dados brutos/intermediários |
+| **Analytics / BI** | Constrói dashboards e análises exploratórias | `SELECT` (somente leitura) em `silver` e `gold` — precisa de mais granularidade que a Gestão, mas não deve alterar dados |
+
+### Princípios aplicados (mesmo que não implementados tecnicamente aqui)
+
+- **Least Privilege (menor privilégio)**: cada time recebe apenas o acesso mínimo necessário para sua função
+- **Segregação por camada**: dados brutos (Raw/Bronze) ficam restritos à Engenharia; times de negócio só acessam dados já tratados e validados (Silver/Gold)
+- **Somente leitura para consumo**: times de Gestão e Analytics nunca têm permissão de escrita, evitando alteração acidental de dados de origem
+
+---
+
+## 10. Orquestração
 
 Job diário, agendado às 06:00, com 6 tasks encadeadas (dependência sequencial):
 
@@ -141,7 +170,7 @@ Alertas de falha configurados para dois destinatários (e-mail pessoal + e-mail 
 
 ---
 
-## 10. Decisões técnicas complementares (a incorporar durante o desenvolvimento)
+## 11. Decisões técnicas complementares (a incorporar durante o desenvolvimento)
 
 - **Databricks Widgets**: parametrização de notebooks (ex: `pais` como parâmetro, permitindo reuso do mesmo notebook para Brasil, Argentina e México em vez de 3 notebooks duplicados)
 - **Programação Orientada a Objetos**: lógica reutilizável centralizada em `src/utils` (ex: uma classe `SCD2Handler` usada pelos 3 notebooks de dimensão)
@@ -149,6 +178,6 @@ Alertas de falha configurados para dois destinatários (e-mail pessoal + e-mail 
 
 ---
 
-## 11. Estimativa de custos
+## 12. Estimativa de custos
 
 Ver seção específica no [README](../README.md#-estimativa-de-custos-simulação), com simulações comparativas entre Databricks sobre AWS e Azure Databricks, incluindo evidências em [`docs/evidencias/`](evidencias/).
