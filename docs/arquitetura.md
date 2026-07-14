@@ -88,9 +88,81 @@ Optamos por **SCD Tipo 2** em Produtos, Lojas e Representantes porque, no cenár
 
 ---
 
-## 5. Modelagem: grão da fato Vendas
+## 5. Modelagem de dados — schemas detalhados
 
-O grão definido é: **1 linha = 1 item vendido por transação** (produto+tamanho, quantidade, valor, país, centro, representante, data). Essa granularidade permite qualquer agregação futura na camada Gold (por produto, por região, por representante, por período) sem perda de detalhe.
+O grão da fato Vendas é: **1 linha = 1 item vendido por transação** (produto+tamanho, quantidade, valor, país, centro, representante, data). Essa granularidade permite qualquer agregação futura na camada Gold (por produto, por região, por representante, por período) sem perda de detalhe.
+
+### `dim_produtos`
+
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `produto_id` | string | Chave natural |
+| `nome_interno` | string | Chave técnica neutra (ex: "MAIONESE"), usada para gerar o `sku` |
+| `nome_brasil` | string | Nome em português (ex: "Maionese") |
+| `nome_argentina` | string | Nome em espanhol argentino (ex: "Mayonesa") |
+| `nome_mexico` | string | Nome em espanhol mexicano (ex: "Mayonesa") |
+| `nome_ingles` | string | Nome em inglês, usado exclusivamente na camada Gold (ex: "Mayonnaise") |
+| `tamanho` | string | "1kg" ou "5kg" |
+| `sku` | string | Combinação de `nome_interno` + tamanho |
+| `preco_brasil_brl` | decimal | Preço em Real |
+| `preco_argentina_ars` | decimal | Preço em Peso argentino |
+| `preco_mexico_mxn` | decimal | Preço em Peso mexicano |
+| `data_inicio` / `data_fim` / `flag_ativo` | date / date / boolean | Controle SCD2 |
+
+**Nota de idioma:** cada país tem produtos com nomenclatura local diferente (ex: Ketchup é popularmente chamado de "Catsup" no México) — mantido fielmente por país nas colunas `nome_brasil`/`nome_argentina`/`nome_mexico`, com uma tradução adicional para inglês (`nome_ingles`) reservada ao consumo executivo na Gold.
+
+### `dim_lojas` (Centros de Distribuição)
+
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `loja_id` | string | Chave natural |
+| `nome_cidade` | string | Cidade do centro de distribuição |
+| `pais` | string | Brasil / Argentina / México |
+| `supervisor_responsavel` | string | Nome do supervisor (referência lógica à dim_representantes) |
+| `peso_distribuicao` | decimal | Peso/percentual usado pelo simulador para distribuir vendas |
+| `data_inicio` / `data_fim` / `flag_ativo` | date / date / boolean | Controle SCD2 |
+
+### `dim_representantes`
+
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `representante_id` | string | Chave natural |
+| `nome` | string | Gerado via Faker (locale do país) |
+| `cargo` | string | "Gerente" ou "Supervisor" |
+| `pais` | string | País de atuação |
+| `centro_vinculado` | string | Centro ao qual está vinculado (nulo para Gerente, que atua por país) |
+| `data_inicio` / `data_fim` / `flag_ativo` | date / date / boolean | Controle SCD2 |
+
+### `fato_vendas`
+
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `venda_id` | string | Chave da transação (UUID) |
+| `data_venda` | date | Data simulada da venda |
+| `produto_id` | string | FK para dim_produtos (versão vigente na data) |
+| `loja_id` | string | FK para dim_lojas |
+| `representante_id` | string | FK para dim_representantes |
+| `pais` | string | Redundante proposital (facilita particionamento/filtro) |
+| `quantidade` | int | Unidades vendidas |
+| `valor_unitario_moeda_local` | decimal | Preço no momento da venda, moeda local |
+| `valor_total_moeda_local` | decimal | quantidade × valor_unitario |
+| `moeda` | string | BRL / ARS / MXN |
+| `cambio_usado` | decimal | Taxa de câmbio aplicada (rastreabilidade) |
+| `valor_total_usd` | decimal | Convertido via `dim_cambio` |
+| `data_ingestao` | timestamp | Metadado técnico de controle |
+
+---
+
+## 5.1. Estratégia de idiomas por camada
+
+Como o projeto opera em 3 países com idiomas diferentes (português do Brasil, espanhol argentino, espanhol mexicano) e o consumidor final da Gold é um perfil executivo (CFO) baseado nos EUA, foi definida uma estratégia explícita de idioma por camada:
+
+| Camada | Idioma | Justificativa |
+|---|---|---|
+| Raw / Bronze / Silver | Nativo de cada país (pt-BR, es-AR, es-MX) | Representa fielmente o dado operacional local, útil para times de Engenharia/Analytics de cada região |
+| Gold | Inglês (valores **e** nomes de colunas) | Camada de consumo executivo/internacional — tabelas e valores traduzidos para atender relatórios globais |
+
+Essa decisão evita que a camada de negócio (Gold) misture "Maionese", "Mayonesa" e "Mostaza" no mesmo relatório para um público que não opera nesses idiomas — centralizando a tradução em um único ponto (a dimensão de produtos) em vez de espalhar lógica de tradução pelo pipeline.
 
 ---
 
@@ -122,7 +194,14 @@ Testamos a conectividade de saída do Databricks Free Edition com sucesso, confi
 | Bronze | `pais` + `data_ingestao` | Mantém rastreabilidade da origem com granularidade adequada |
 | Silver (fato) | `pais` + `data_venda` | Otimiza leituras filtradas por região, dado o volume desigual entre países |
 | Silver (dimensões) | Sem partição | Volume baixo (poucas dezenas de registros + histórico) não justifica partição |
-| Gold | A definir | Depende das métricas/agregações que serão construídas |
+| Gold | `pais` (em `gold_sales_by_country`) | `gold_sales_global` não particiona, dado o baixo volume agregado |
+
+### Tabelas Gold planejadas (pré-definição, detalhamento na etapa 21)
+
+| Tabela | Granularidade | Colunas (em inglês) | Uso |
+|---|---|---|---|
+| `gold_sales_by_country` | País + período | `country`, `period`, `total_local_currency`, `local_currency_code`, `total_usd` | CFO analisa o resultado de cada país, na moeda local e em USD |
+| `gold_sales_global` | Período (consolidado) | `period`, `total_usd` | CFO analisa o total global consolidado, somente em USD |
 
 ---
 
