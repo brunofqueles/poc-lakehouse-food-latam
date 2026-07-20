@@ -166,6 +166,52 @@ Essa decisão evita que a camada de negócio (Gold) misture "Maionese", "Mayones
 
 ---
 
+## 5.2. Simulador de dados — decisões de implementação
+
+Esta seção documenta decisões técnicas tomadas durante a construção do simulador (`src/simulador/`), que impactam diretamente o que as camadas seguintes (Bronze/Silver) precisam tratar.
+
+### Chaves técnicas neutras (evitando "smart keys")
+
+O `representante_id` usa o prefixo único `REP` para todos os cargos (Gerente e Supervisor), em vez de prefixos como `GER`/`SUP`. Isso segue a prática recomendada de modelagem de dados de **evitar chaves inteligentes** (IDs que embutem significado de negócio) — se o cargo de uma pessoa mudar no futuro, a chave primária permanece estável, sem quebrar referências históricas em `fato_vendas`. O cargo é corretamente representado na coluna `cargo`, não na chave.
+
+### Simulação de qualidade de dados (sujeira proposital)
+
+Para dar propósito real de tratamento de dados à camada Silver, o simulador introduz inconsistências propositais e controladas:
+
+- **Nomes de representantes** (`FakerHelper.gerar_nome()`): 15% de chance de vir em CAIXA ALTA ou com espaços extras nas bordas — simula variações comuns de cadastro manual
+- **Preços de produtos** (`dim_produtos`): gravados como **texto**, no formato brasileiro/latino (vírgula decimal, ex: `"12,90"`), simulando uma extração real de ERP — a Bronze precisará fazer o casting explícito para tipo decimal
+- **Nomes de cidade**: gravados **com acentuação correta** na origem (decisão consciente, revertendo a ideia inicial de simular perda de encoding) — porém a camada Silver vai **remover acentos e padronizar para maiúsculas**, como regra de qualidade para uso em chaves de junção/agrupamento
+
+### Separação entre dado transacional e cálculo derivado
+
+O simulador de vendas grava apenas os dados "brutos" da transação (`quantidade`, `valor_unitario_moeda_local` como texto, `moeda`) — **não calcula** `valor_total_moeda_local`, `cambio_usado` nem `valor_total_usd`. Esses campos são cálculos/enriquecimentos derivados, responsabilidade da Bronze (casting) e Silver (cálculo de total e conversão de câmbio), mantendo a Raw fiel a uma exportação real de sistema de origem, que não faria esse tipo de processamento.
+
+### Regra de negócio: vínculo representante-centro
+
+Uma venda gerada para um centro de distribuição específico só pode ser atribuída ao Supervisor daquele centro, ou ao Gerente do país (que supervisiona todos os centros) — nunca a um Supervisor de outro centro. Essa regra é aplicada diretamente na geração da venda, filtrando os representantes elegíveis por `centro_vinculado` antes da seleção aleatória.
+
+### Regra de negócio: dias úteis e feriados
+
+O simulador de vendas não gera transações em finais de semana ou feriados nacionais, usando a biblioteca `holidays` (calendários de Brasil, Argentina e México). Cada execução do notebook registra um **log de auditoria cumulativo** (`logs/execucao_vendas`, modo *append*) contendo data, país, se era dia útil, e o motivo do bloqueio quando aplicável — permitindo rastrear todas as execuções do pipeline, inclusive as que não geraram vendas.
+
+### Estrutura de pastas da Landing Zone
+
+```
+/Volumes/poc_latam_food/landing/blob_simulado/
+├── dimensoes/
+│   ├── produtos/
+│   ├── lojas/
+│   └── representantes/
+├── vendas/
+│   └── pais=<pais>/data=<data_venda>/     (Hive-style partitioning)
+└── logs/
+    └── execucao_vendas/
+```
+
+O particionamento `pais=X/data=Y` em vendas segue o padrão Hive-style, permitindo que ferramentas de leitura (como o Autoloader) filtrem por partição sem precisar ler o conteúdo dos arquivos.
+
+---
+
 ## 6. Distribuição simulada de vendas
 
 | País | % do volume total | Regra de distribuição entre centros |
