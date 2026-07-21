@@ -295,6 +295,16 @@ Job diário, agendado às 06:00, com 6 tasks encadeadas (dependência sequencial
 
 Alertas de falha configurados para dois destinatários (e-mail pessoal + e-mail simulando um grupo de trabalho), reforçando uma prática de observabilidade mínima esperada em pipelines de produção.
 
+### 10.1. Job auxiliar temporário — geração diária de vendas
+
+**Contexto:** durante a fase de desenvolvimento incremental do pipeline (construção manual e testada camada por camada), identificou-se um risco operacional: a geração diária de vendas depende de execução manual do notebook `gerar_vendas.py`, criando risco de esquecimento e, consequentemente, "buracos" na sequência de datas — o que prejudicaria os testes das camadas seguintes (Bronze/Silver/Gold).
+
+**Decisão:** criar um Job auxiliar, temporário, contendo **apenas** a execução diária automatizada de `gerar_vendas.py` (uma task por país: Brasil, Argentina, México), agendado às 06:00 — mitigando o risco de descontinuidade de dados sem antecipar a complexidade de orquestrar camadas ainda não construídas.
+
+**Natureza temporária:** este job é uma **medida de contenção**, não a solução definitiva de orquestração. Ele será **descomissionado** assim que o Workflow completo de 6 tasks (Simulador → Raw → Bronze → Expurgo Raw → Silver → Gold) estiver construído e testado, na etapa correspondente do roadmap do projeto.
+
+**Justificativa da abordagem:** soluções-ponte durante construção incremental de pipelines são uma prática comum em ambientes de produção reais — permitem mitigar um risco operacional concreto e imediato sem acoplar a solução a componentes que ainda não existem, mantendo o desenvolvimento das demais camadas desacoplado e testável de forma independente.
+
 ---
 
 ## 11. Decisões técnicas complementares (a incorporar durante o desenvolvimento)
