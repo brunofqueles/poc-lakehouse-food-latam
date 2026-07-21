@@ -28,9 +28,10 @@ O projeto segue a **Arquitetura Medallion** (Raw → Bronze → Silver → Gold)
         ▼
 ┌───────────────────────────────────────────────┐
 │  BRONZE                                        │
-│  - Schema aplicado                              │
+│  - Cópia fiel da Raw, sem casting/transformação │
+│    (dado mantém o tipo/formato original)        │
 │  - Metadados de controle (data_ingestao,        │
-│    arquivo_origem)                              │
+│    data_ingestao_bronze)                        │
 │  - Particionado por pais + data_ingestao        │
 └───────────────────────────────────────────────┘
         │
@@ -61,7 +62,7 @@ Em arquiteturas Medallion clássicas, a Raw normalmente é permanente. Neste pro
 
 - Reduz custo de armazenamento de dados não tratados
 - Reduz a superfície de exposição de dados brutos (antes de qualquer mascaramento/tratamento)
-- Força a Bronze a ser a camada de retenção de longo prazo, já com schema aplicado — o que é mais seguro do ponto de vista de governança
+- Força a Bronze a ser a camada de retenção de longo prazo, mantendo o dado fiel à origem em formato Delta gerenciado — o que é mais seguro do ponto de vista de governança e auditoria (a Bronze é a "fonte da verdade" bruta, permanente)
 
 O expurgo é feito via `DELETE`/`VACUUM` do Delta Lake, rodando como uma task dedicada dentro do job diário, logo após a ingestão Raw → Bronze ter sido concluída com sucesso.
 
@@ -209,6 +210,10 @@ O simulador de vendas não gera transações em finais de semana ou feriados nac
 ```
 
 O particionamento `pais=X/data=Y` em vendas segue o padrão Hive-style, permitindo que ferramentas de leitura (como o Autoloader) filtrem por partição sem precisar ler o conteúdo dos arquivos.
+
+### Bronze como cópia fiel (sem casting)
+
+Diferente de uma definição mais comum de Bronze (que às vezes já aplica tipos/schema), neste projeto a Bronze foi definida como uma **cópia fiel da Raw em formato Delta gerenciado, sem nenhuma transformação de conteúdo** — os preços permanecem como texto (`"12,90"`), os nomes mantêm qualquer inconsistência vinda da origem. Apenas metadados de controle (ex: `data_ingestao_bronze`) são adicionados. Todo casting de tipo, padronização de texto, cálculo de totais e conversão de câmbio é responsabilidade exclusiva da **Silver**. Essa escolha reforça a Bronze como a "fonte da verdade" bruta e imutável do dado, com toda transformação centralizada em uma única camada (Silver), facilitando auditoria e rastreabilidade.
 
 ---
 
