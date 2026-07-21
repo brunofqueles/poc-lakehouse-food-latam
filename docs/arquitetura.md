@@ -286,10 +286,12 @@ Job diário, agendado às 06:00, com 6 tasks encadeadas (dependência sequencial
 
 1. **Simulador** — gera arquivos JSON na Landing Zone
 2. **Raw** — Autoloader lê a Landing Zone e grava na Raw
-3. **Expurgo Raw** — remove registros com mais de 48h
-4. **Bronze** — aplica schema e metadados de controle
+3. **Bronze** — aplica schema e metadados de controle
+4. **Expurgo Raw** — remove registros de vendas com mais de 48h (executado **após** a Bronze, garantindo que nenhum dado seja perdido antes de ser processado pela camada seguinte)
 5. **Silver** — MERGE SCD2 nas dimensões + carga incremental da fato Vendas
 6. **Gold** — cálculo de métricas de negócio
+
+**Nota de correção de design:** a ordem original deste documento posicionava o Expurgo Raw antes da Bronze, o que causaria perda de dados não processados. Corrigido para garantir que o expurgo só ocorra após a cópia bem-sucedida dos dados para a camada seguinte.
 
 Alertas de falha configurados para dois destinatários (e-mail pessoal + e-mail simulando um grupo de trabalho), reforçando uma prática de observabilidade mínima esperada em pipelines de produção.
 
