@@ -66,6 +66,14 @@ Em arquiteturas Medallion clássicas, a Raw normalmente é permanente. Neste pro
 
 O expurgo é feito via `DELETE`/`VACUUM` do Delta Lake, rodando como uma task dedicada dentro do job diário, logo após a ingestão Raw → Bronze ter sido concluída com sucesso.
 
+### 2.1. Esclarecimento importante: TTL por data de ingestão, não por data de negócio
+
+**Episódio real do desenvolvimento:** durante os testes, dados de vendas do dia 17/07 (`data_venda`) foram intencionalmente ingeridos na Raw de forma retroativa, no mesmo dia real em que os dados de 20/07 foram processados pela primeira vez (20/07). Ao rodar o expurgo alguns dias depois, os registros de 17/07 **não foram removidos**, mesmo já representando uma venda "antiga" do ponto de vista de negócio.
+
+**Explicação:** a coluna que controla o TTL (`data_ingestao_particao`) reflete **quando o dado entrou fisicamente na Raw**, não a data da transação de negócio (`data_venda`). Como os dados de 17/07 e 20/07 foram ambos processados no mesmo dia real (20/07), ambos compartilham a mesma partição de ingestão — portanto, ainda não haviam completado 48 horas **desde a ingestão**, independentemente da data da venda em si.
+
+**Isso é o comportamento correto e intencional:** o TTL de 48h protege contra acúmulo de dados **não processados** na Raw por muito tempo (o problema operacional que a Raw temporária busca resolver), não é uma regra sobre a idade do evento de negócio. Em operação normal (dados processados no mesmo dia em que são gerados), essa distinção não seria perceptível — ela só se tornou visível neste projeto por causa de cargas retroativas manuais feitas durante o desenvolvimento/teste.
+
 ---
 
 ## 3. Por que Delta Lake em vez de Parquet puro?
