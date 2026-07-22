@@ -74,6 +74,12 @@ O expurgo é feito via `DELETE`/`VACUUM` do Delta Lake, rodando como uma task de
 
 **Isso é o comportamento correto e intencional:** o TTL de 48h protege contra acúmulo de dados **não processados** na Raw por muito tempo (o problema operacional que a Raw temporária busca resolver), não é uma regra sobre a idade do evento de negócio. Em operação normal (dados processados no mesmo dia em que são gerados), essa distinção não seria perceptível — ela só se tornou visível neste projeto por causa de cargas retroativas manuais feitas durante o desenvolvimento/teste.
 
+### 2.2. TTL lógico (48h) vs. retenção física do VACUUM (7 dias)
+
+O `DELETE` que implementa o TTL de 48h é uma remoção **lógica** — o Delta Lake mantém os arquivos físicos por um período mínimo de segurança (padrão: 7 dias), controlado pela trava `spark.databricks.delta.retentionDurationCheck.enabled`, que impede a execução de `VACUUM` com retenção menor que esse limite. Essa proteção existe para evitar remoção física de arquivos que processos de leitura concorrentes (ex: streaming) ainda possam precisar acessar.
+
+**Decisão:** manter a retenção padrão de 7 dias para o `VACUUM`, em vez de desabilitar a trava de segurança para forçar uma limpeza física em 48h. Isso significa que o objetivo principal do TTL (impedir que dados brutos fiquem visíveis/consultáveis por muito tempo) é cumprido integralmente pelo `DELETE` em 48h; a liberação física de espaço em disco ocorre de forma mais conservadora, em até 7 dias — um trade-off aceitável entre economia de armazenamento e segurança operacional, priorizando a segunda.
+
 ---
 
 ## 3. Por que Delta Lake em vez de Parquet puro?
