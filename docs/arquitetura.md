@@ -310,6 +310,8 @@ Alertas de falha configurados para dois destinatários (e-mail pessoal + e-mail 
 
 **Justificativa da abordagem:** soluções-ponte durante construção incremental de pipelines são uma prática comum em ambientes de produção reais — permitem mitigar um risco operacional concreto e imediato sem acoplar a solução a componentes que ainda não existem, mantendo o desenvolvimento das demais camadas desacoplado e testável de forma independente.
 
+**Lacuna identificada na prática (episódio real do desenvolvimento):** a automação parcial (apenas o simulador) resolveu o risco de esquecimento na *geração* dos dados, mas expôs uma lacuna relacionada: como a ingestão Raw (`ingestao_raw_vendas.py`) e a cópia Bronze (`bronze_vendas.py`) continuaram sendo executadas manualmente durante o desenvolvimento, os dados gerados automaticamente pelo job auxiliar em dois dias (21 e 22/07) permaneceram **apenas na Landing Zone**, sem chegar às tabelas Raw/Bronze, até serem processados manualmente dias depois. O Autoloader e o Structured Streaming sobre Delta lidaram corretamente com esse atraso — ao serem executados novamente, retomaram do checkpoint e processaram exatamente o incremento pendente, sem duplicar nem perder dados. Esse episódio reforça, na prática, por que a automação parcial é insuficiente a médio prazo, e valida a necessidade do Workflow completo (etapa 22), que vai encadear as 6 tasks (incluindo Raw e Bronze) de forma automática e sequencial, eliminando esse tipo de lacuna.
+
 ---
 
 ## 11. Decisões técnicas complementares (a incorporar durante o desenvolvimento)
