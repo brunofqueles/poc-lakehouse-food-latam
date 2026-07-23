@@ -229,6 +229,20 @@ O particionamento `pais=X/data=Y` em vendas segue o padrão Hive-style, permitin
 
 Diferente de uma definição mais comum de Bronze (que às vezes já aplica tipos/schema), neste projeto a Bronze foi definida como uma **cópia fiel da Raw em formato Delta gerenciado, sem nenhuma transformação de conteúdo** — os preços permanecem como texto (`"12,90"`), os nomes mantêm qualquer inconsistência vinda da origem. Apenas metadados de controle (ex: `data_ingestao_bronze`) são adicionados. Todo casting de tipo, padronização de texto, cálculo de totais e conversão de câmbio é responsabilidade exclusiva da **Silver**. Essa escolha reforça a Bronze como a "fonte da verdade" bruta e imutável do dado, com toda transformação centralizada em uma única camada (Silver), facilitando auditoria e rastreabilidade.
 
+### Inferência automática de schema (Autoloader) trata números como texto
+
+**Episódio real do desenvolvimento:** a coluna `peso_distribuicao` de `dim_lojas`, embora tenha sido gerada como valor numérico (`double`) no simulador, chegou como `string` na Raw/Bronze. Isso ocorre porque o Autoloader **infere o schema automaticamente a partir do JSON**, e essa inferência, em alguns casos, não distingue com precisão valores numéricos simples de texto — resultando em colunas numéricas sendo tratadas como string mesmo sem essa ser uma "sujeira" proposital do projeto.
+
+**Implicação prática:** toda coluna numérica que chega da Bronze precisa ser **conferida explicitamente** (via `printSchema()`) na Silver antes de ser usada em cálculos, mesmo quando não fazia parte da lista de campos com "sujeira" proposital documentada na seção 5.2. O casting explícito (`.cast("double")`, `.cast("decimal(...)")`) deve ser aplicado sempre que necessário, independentemente de a coluna ter sido projetada como numérica na origem.
+
+### Padronização de texto na Silver: maiúsculas totais, sem exceção para nomes de pessoas
+
+**Decisão revisada durante o desenvolvimento:** a intenção inicial era manter a acentuação em nomes de representantes (`dim_representantes`) para fins de exibição, diferente do tratamento dado a nomes de cidade (que já seriam padronizados como chave de junção). Essa decisão foi **revista**: como a Silver também alimenta consumidores analíticos (ex: um time de Ciência de Dados), e não apenas relatórios executivos, optou-se por padronizar **todas** as colunas de texto na Silver — maiúsculas, sem acento — incluindo nomes de pessoas.
+
+**Achado adicional:** a geração de nomes via Faker, em alguns casos, incluiu títulos/prefixos de tratamento (ex: "Srta.", "Lic.") como parte do nome gerado, dependendo do locale. Esses títulos foram removidos via expressão regular antes da padronização, evitando poluir o nome com informação que não é o dado de interesse (o nome da pessoa em si).
+
+**Onde a exibição "bonita" acontece:** apenas na camada **Gold**, que é a única camada pensada para consumo executivo/apresentação — reforçando a separação de responsabilidades já estabelecida na seção 5.1 (estratégia de idiomas por camada).
+
 ---
 
 ## 6. Distribuição simulada de vendas
