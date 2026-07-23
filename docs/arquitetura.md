@@ -267,6 +267,8 @@ Testamos a conectividade de saída do Databricks Free Edition com sucesso, confi
 
 **Granularidade histórica:** diferente de uma tabela que apenas sobrescreve a cotação mais recente, `dim_cambio` mantém o **histórico completo** (uma linha por moeda/dia), permitindo consultar qual era a cotação vigente em qualquer data passada — essencial para que vendas antigas sejam convertidas com a taxa correta da época, não com a taxa atual.
 
+**Limitação conhecida (vendas anteriores à existência de `dim_cambio`):** como `dim_cambio` só passou a existir a partir do dia em que o notebook `silver_cambio.py` foi executado pela primeira vez, vendas com `data_venda` anterior a essa data não encontram cotação correspondente no JOIN com `silver.fato_vendas` — os campos `cambio_usado` e `valor_total_usd` permanecem nulos para esses registros. Optou-se conscientemente por **não preencher retroativamente** esses valores com a cotação atual, por não representar a taxa real vigente naquelas datas — mantendo a integridade e honestidade do dado em vez de uma aproximação artificial.
+
 ---
 
 ## 8. Particionamento por camada
