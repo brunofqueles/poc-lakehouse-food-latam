@@ -263,6 +263,10 @@ Testamos a conectividade de saída do Databricks Free Edition com sucesso, confi
 
 **Estratégia de resiliência:** como toda dependência externa pode falhar (rate limit, timeout, instabilidade), o pipeline não deve travar por conta disso. Caso a chamada falhe, a tabela `dim_cambio` retém a **última cotação obtida com sucesso**, sinalizando o registro como desatualizado, em vez de interromper a execução do pipeline inteiro.
 
+**Cotação única diária (sem variação intraday):** a tabela `dim_cambio` armazena **uma única cotação por moeda, por dia** — capturada no momento da execução do Workflow (job diário às 06:00), não múltiplas capturas ao longo do dia. Embora o câmbio real oscile intraday, essa simplificação é consciente e reflete uma prática comum em contabilidade e relatórios financeiros corporativos (ex: a taxa PTAX do Banco Central do Brasil, usada como referência única diária para conversões oficiais) — priorizando consistência e auditabilidade sobre precisão de tempo real.
+
+**Granularidade histórica:** diferente de uma tabela que apenas sobrescreve a cotação mais recente, `dim_cambio` mantém o **histórico completo** (uma linha por moeda/dia), permitindo consultar qual era a cotação vigente em qualquer data passada — essencial para que vendas antigas sejam convertidas com a taxa correta da época, não com a taxa atual.
+
 ---
 
 ## 8. Particionamento por camada
