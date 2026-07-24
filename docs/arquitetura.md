@@ -344,19 +344,21 @@ Job diário, agendado às 06:00, com dependências encadeadas por estágio.
 
 ```
 gerar_vendas_brasil ─┐
-gerar_vendas_argentina ─┼──► ingestao_raw_dimensoes ──► bronze_dimensoes ─┐
-gerar_vendas_mexico ─┘        ingestao_raw_vendas ──► bronze_vendas ─────┼──► expurgo_raw
+gerar_vendas_argentina ─┼──► ingestao_raw_dimensoes ──► bronze_dimensoes ─┬──► expurgo_raw (paralelo à Silver)
+gerar_vendas_mexico ─┘        ingestao_raw_vendas ──► bronze_vendas ─────┘
                                                                           │
-                              expurgo_raw ──► silver_produtos ───────────┤
-                                          ──► silver_lojas ──────────────┤
-                                          ──► silver_representantes ────┤
-                                          ──► silver_cambio ────────────┤
-                                          └─► silver_fato_vendas (depende das 4 acima)
+                              bronze_dimensoes ──► silver_produtos ──────┤
+                                              ──► silver_lojas ──────────┤
+                                              ──► silver_representantes ┤
+                              bronze_dimensoes + bronze_vendas ──► silver_cambio ┤
+                                                     silver_fato_vendas (depende das 4 acima)
                                                      │
                               silver_fato_vendas ──► gold_sales_by_country
                                                   ──► gold_sales_global
                                                   ──► gold_sales_by_product
 ```
+
+**Nota sobre `expurgo_raw`:** embora conceitualmente pertença ao "estágio" entre Bronze e Silver, tecnicamente não há dependência de dados entre o expurgo e o processamento da Silver — ambos dependem apenas da Bronze estar concluída. Por isso, `expurgo_raw` foi estruturado para rodar **em paralelo** às tasks da Silver, não como um bloqueio sequencial — reduzindo pontos de falha desnecessários no pipeline (uma falha no expurgo não impede o processamento da Silver).
 
 **Lista completa das 16 tasks:**
 1-3. `gerar_vendas_brasil`, `gerar_vendas_argentina`, `gerar_vendas_mexico` (paralelas)
