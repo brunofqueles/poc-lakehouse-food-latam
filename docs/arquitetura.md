@@ -281,12 +281,22 @@ Testamos a conectividade de saída do Databricks Free Edition com sucesso, confi
 | Silver (dimensões) | Sem partição | Volume baixo (poucas dezenas de registros + histórico) não justifica partição |
 | Gold | `pais` (em `gold_sales_by_country`) | `gold_sales_global` não particiona, dado o baixo volume agregado |
 
-### Tabelas Gold planejadas (pré-definição, detalhamento na etapa 21)
+### Tabelas Gold — implementação
 
 | Tabela | Granularidade | Colunas (em inglês) | Uso |
 |---|---|---|---|
-| `gold_sales_by_country` | País + período | `country`, `period`, `total_local_currency`, `local_currency_code`, `total_usd` | CFO analisa o resultado de cada país, na moeda local e em USD |
-| `gold_sales_global` | Período (consolidado) | `period`, `total_usd` | CFO analisa o total global consolidado, somente em USD |
+| `gold.sales_by_country` | País + dia (`period`) | `country`, `period`, `total_local_currency`, `local_currency_code`, `total_usd` | CFO analisa o resultado de cada país, na moeda local e em USD |
+| `gold.sales_global` | Dia (`period`), consolidado | `period`, `total_usd` | CFO analisa o total global consolidado, somente em USD |
+
+**Granularidade escolhida:** diária (não mensal), para permitir validação imediata com o volume de dados ainda pequeno do projeto. Agregações mensais podem ser obtidas facilmente a partir dessas tabelas diárias, se necessário no futuro.
+
+**Estratégia de escrita:** ambas as tabelas usam **overwrite completo** a cada execução (`mode("overwrite")`, com `overwriteSchema=true`), recalculando tudo a partir da Silver — em vez de atualização incremental. Essa escolha simplifica a lógica (a Gold é sempre um reflexo fiel e current da Silver) e evita inconsistências caso dados históricos na Silver sejam corrigidos ou reprocessados.
+
+**Tradução de país:** realizada via `CASE WHEN` (função `when()` do PySpark) no momento da consulta, mapeando os valores padronizados da Silver (`BRASIL`, `ARGENTINA`, `MEXICO`) para os nomes em inglês (`Brazil`, `Argentina`, `Mexico`) esperados na Gold.
+
+**Decisão: visão de somatório por país sem quebra por dia não vira tabela própria.** Uma visão adicional (total consolidado por país, somando todos os dias) foi considerada, mas optou-se por mantê-la como uma **consulta simples** sobre `gold.sales_by_country` (agrupando sem a coluna `period`), em vez de criar uma terceira tabela Gold persistente — evitando redundância de dados quando uma consulta trivial já resolve a necessidade.
+
+**Cuidado ao agregar valores em USD nessa visão consolidada:** como nem todos os dias possuem cotação de câmbio disponível (ver seção 7), uma soma de `total_usd` que misture dias com e sem câmbio representaria apenas uma fração do período real, podendo induzir a uma leitura equivocada. Por esse motivo, a consulta de somatório por país inclui apenas o total em moeda local, omitindo o total em USD.
 
 ---
 
