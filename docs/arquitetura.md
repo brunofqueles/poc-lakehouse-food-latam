@@ -287,14 +287,19 @@ Testamos a conectividade de saída do Databricks Free Edition com sucesso, confi
 |---|---|---|---|
 | `gold.sales_by_country` | País + dia (`period`) | `country`, `period`, `total_local_currency`, `local_currency_code`, `total_usd` | CFO analisa o resultado de cada país, na moeda local e em USD |
 | `gold.sales_global` | Dia (`period`), consolidado | `period`, `total_usd` | CFO analisa o total global consolidado, somente em USD |
+| `gold.sales_by_product` | Produto + tamanho + país + dia (`period`) | `product_name`, `size`, `country`, `period`, `quantity_sold`, `total_usd` | CFO analisa performance de vendas por SKU (ex: unidades e receita de Mayonnaise 1kg no Brasil) |
+
+**Terceira tabela adicionada durante o desenvolvimento:** o plano original previa apenas 2 tabelas Gold. `gold.sales_by_product` foi adicionada ao se identificar uma lacuna real: nenhuma das duas tabelas originais permitia analisar vendas por produto — informação essencial para um relatório executivo de uma empresa de bens de consumo. A tabela reaproveita a tradução de nome de produto (`nome_ingles`) já preparada na dimensão desde a modelagem inicial (seção 5), mas que ainda não era utilizada em nenhuma tabela Gold.
+
+**Decisão: sales_by_product não inclui moeda local.** Diferente de `sales_by_country`, esta tabela expõe apenas `total_usd`, sem `total_local_currency`/`local_currency_code`. A justificativa é de clareza executiva: o relatório de produto é consumido já em nível consolidado (dólar), e a redundância de mostrar moeda local ao lado do país (que já a identifica implicitamente) adicionaria ruído visual sem valor analítico adicional.
 
 **Granularidade escolhida:** diária (não mensal), para permitir validação imediata com o volume de dados ainda pequeno do projeto. Agregações mensais podem ser obtidas facilmente a partir dessas tabelas diárias, se necessário no futuro.
 
-**Estratégia de escrita:** ambas as tabelas usam **overwrite completo** a cada execução (`mode("overwrite")`, com `overwriteSchema=true`), recalculando tudo a partir da Silver — em vez de atualização incremental. Essa escolha simplifica a lógica (a Gold é sempre um reflexo fiel e current da Silver) e evita inconsistências caso dados históricos na Silver sejam corrigidos ou reprocessados.
+**Estratégia de escrita:** todas as tabelas usam **overwrite completo** a cada execução (`mode("overwrite")`, com `overwriteSchema=true`), recalculando tudo a partir da Silver — em vez de atualização incremental. Essa escolha simplifica a lógica (a Gold é sempre um reflexo fiel e current da Silver) e evita inconsistências caso dados históricos na Silver sejam corrigidos ou reprocessados.
 
 **Tradução de país:** realizada via `CASE WHEN` (função `when()` do PySpark) no momento da consulta, mapeando os valores padronizados da Silver (`BRASIL`, `ARGENTINA`, `MEXICO`) para os nomes em inglês (`Brazil`, `Argentina`, `Mexico`) esperados na Gold.
 
-**Decisão: visão de somatório por país sem quebra por dia não vira tabela própria.** Uma visão adicional (total consolidado por país, somando todos os dias) foi considerada, mas optou-se por mantê-la como uma **consulta simples** sobre `gold.sales_by_country` (agrupando sem a coluna `period`), em vez de criar uma terceira tabela Gold persistente — evitando redundância de dados quando uma consulta trivial já resolve a necessidade.
+**Decisão: visão de somatório por país sem quebra por dia não vira tabela própria.** Uma visão adicional (total consolidado por país, somando todos os dias) foi considerada, mas optou-se por mantê-la como uma **consulta simples** sobre `gold.sales_by_country` (agrupando sem a coluna `period`), em vez de criar uma quarta tabela Gold persistente — evitando redundância de dados quando uma consulta trivial já resolve a necessidade.
 
 **Cuidado ao agregar valores em USD nessa visão consolidada:** como nem todos os dias possuem cotação de câmbio disponível (ver seção 7), uma soma de `total_usd` que misture dias com e sem câmbio representaria apenas uma fração do período real, podendo induzir a uma leitura equivocada. Por esse motivo, a consulta de somatório por país inclui apenas o total em moeda local, omitindo o total em USD.
 
