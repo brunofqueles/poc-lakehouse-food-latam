@@ -336,14 +336,36 @@ Testamos a conectividade de saída do Databricks Free Edition com sucesso, confi
 
 ## 10. Orquestração
 
-Job diário, agendado às 06:00, com 6 tasks encadeadas (dependência sequencial):
+Job diário, agendado às 06:00, com dependências encadeadas por estágio.
 
-1. **Simulador** — gera arquivos JSON na Landing Zone
-2. **Raw** — Autoloader lê a Landing Zone e grava na Raw
-3. **Bronze** — aplica schema e metadados de controle
-4. **Expurgo Raw** — remove registros de vendas com mais de 48h (executado **após** a Bronze, garantindo que nenhum dado seja perdido antes de ser processado pela camada seguinte)
-5. **Silver** — MERGE SCD2 nas dimensões + carga incremental da fato Vendas
-6. **Gold** — cálculo de métricas de negócio
+**Evolução do plano original:** o desenho inicial deste documento previa 6 tasks (uma por camada conceitual: Simulador, Raw, Bronze, Expurgo Raw, Silver, Gold). Conforme o projeto evoluiu, cada camada foi modularizada em múltiplos notebooks independentes (para reforçar boas práticas de responsabilidade única e reuso). Isso resultou em **16 tasks reais**, mantendo a mesma sequência lógica de 6 estágios, porém com granularidade fina — permitindo identificar exatamente qual notebook falhou, em vez de apontar apenas para a camada como um todo.
+
+### Estrutura de tasks e dependências
+
+```
+gerar_vendas_brasil ─┐
+gerar_vendas_argentina ─┼──► ingestao_raw_dimensoes ──► bronze_dimensoes ─┐
+gerar_vendas_mexico ─┘        ingestao_raw_vendas ──► bronze_vendas ─────┼──► expurgo_raw
+                                                                          │
+                              expurgo_raw ──► silver_produtos ───────────┤
+                                          ──► silver_lojas ──────────────┤
+                                          ──► silver_representantes ────┤
+                                          ──► silver_cambio ────────────┤
+                                          └─► silver_fato_vendas (depende das 4 acima)
+                                                     │
+                              silver_fato_vendas ──► gold_sales_by_country
+                                                  ──► gold_sales_global
+                                                  ──► gold_sales_by_product
+```
+
+**Lista completa das 16 tasks:**
+1-3. `gerar_vendas_brasil`, `gerar_vendas_argentina`, `gerar_vendas_mexico` (paralelas)
+4-5. `ingestao_raw_dimensoes`, `ingestao_raw_vendas`
+6-7. `bronze_dimensoes`, `bronze_vendas`
+8. `expurgo_raw`
+9-12. `silver_produtos`, `silver_lojas`, `silver_representantes`, `silver_cambio` (paralelas entre si)
+13. `silver_fato_vendas` (depende das 4 anteriores)
+14-16. `gold_sales_by_country`, `gold_sales_global`, `gold_sales_by_product` (paralelas entre si)
 
 **Nota de correção de design:** a ordem original deste documento posicionava o Expurgo Raw antes da Bronze, o que causaria perda de dados não processados. Corrigido para garantir que o expurgo só ocorra após a cópia bem-sucedida dos dados para a camada seguinte.
 
