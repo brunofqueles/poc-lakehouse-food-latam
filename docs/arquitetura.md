@@ -235,6 +235,14 @@ Diferente de uma definição mais comum de Bronze (que às vezes já aplica tipo
 
 **Implicação prática:** toda coluna numérica que chega da Bronze precisa ser **conferida explicitamente** (via `printSchema()`) na Silver antes de ser usada em cálculos, mesmo quando não fazia parte da lista de campos com "sujeira" proposital documentada na seção 5.2. O casting explícito (`.cast("double")`, `.cast("decimal(...)")`) deve ser aplicado sempre que necessário, independentemente de a coluna ter sido projetada como numérica na origem.
 
+### Streaming incremental sobre fonte com DELETE (ignoreDeletes)
+
+**Episódio real do desenvolvimento:** ao testar o Workflow definitivo, a task `bronze_vendas` falhou com o erro `DELTA_SOURCE_IGNORE_DELETE`. A causa: `bronze_vendas.py` lê `raw.vendas` via Structured Streaming, que por padrão assume uma fonte **append-only** (somente inserções). Como o `expurgo_raw.py` executa `DELETE` na tabela `raw.vendas` (TTL de 48h), o Structured Streaming detectou essa exclusão e recusou prosseguir, por não suportar remoção de dados na fonte por padrão.
+
+**Solução:** adicionada a opção `.option("ignoreDeletes", "true")` na leitura streaming de `bronze_vendas.py`. Isso é seguro neste projeto porque a Bronze é uma cópia **permanente** — qualquer linha eventualmente removida da Raw pelo expurgo já foi copiada para a Bronze antes da exclusão ocorrer. Ignorar a exclusão na leitura incremental não causa perda de dados; apenas evita que o Spark tente (incorretamente) replicar uma exclusão que não deveria existir na camada Bronze.
+
+**Implicação arquitetural mais ampla:** qualquer notebook que leia via Structured Streaming de uma tabela Delta sujeita a exclusões (como `raw.vendas`, por causa do TTL) precisa desta mesma opção. Isso reforça, na prática, por que a Bronze foi definida como cópia fiel e permanente: ela é o "porto seguro" que absorve os dados antes de qualquer exclusão na Raw acontecer.
+
 ### Padronização de texto na Silver: maiúsculas totais, sem exceção para nomes de pessoas
 
 **Decisão revisada durante o desenvolvimento:** a intenção inicial era manter a acentuação em nomes de representantes (`dim_representantes`) para fins de exibição, diferente do tratamento dado a nomes de cidade (que já seriam padronizados como chave de junção). Essa decisão foi **revista**: como a Silver também alimenta consumidores analíticos (ex: um time de Ciência de Dados), e não apenas relatórios executivos, optou-se por padronizar **todas** as colunas de texto na Silver — maiúsculas, sem acento — incluindo nomes de pessoas.
