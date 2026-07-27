@@ -346,6 +346,8 @@ Testamos a conectividade de saída do Databricks Free Edition com sucesso, confi
 
 Job diário, agendado às 06:00, com dependências encadeadas por estágio.
 
+**Versionamento da configuração:** a definição completa do Job (16 tasks, dependências, agendamento, notificações) está versionada em [`workflows/pipeline_diario.yml`](../workflows/pipeline_diario.yml), exportada via "Edit as YAML" na interface do Databricks Jobs. Esse arquivo serve como documentação viva da orquestração e como primeiro passo em direção a uma futura adoção de **Databricks Asset Bundles** (Infrastructure as Code) — no formato de Asset Bundle, este mesmo YAML seria a fonte de verdade deployada via `databricks bundle deploy`, em vez de configurado manualmente pela interface. Por ora, o arquivo é uma cópia de referência: alterações no Job continuam sendo feitas pela interface, com reexportação e commit sempre que a configuração mudar.
+
 **Evolução do plano original:** o desenho inicial deste documento previa 6 tasks (uma por camada conceitual: Simulador, Raw, Bronze, Expurgo Raw, Silver, Gold). Conforme o projeto evoluiu, cada camada foi modularizada em múltiplos notebooks independentes (para reforçar boas práticas de responsabilidade única e reuso). Isso resultou em **16 tasks reais**, mantendo a mesma sequência lógica de 6 estágios, porém com granularidade fina — permitindo identificar exatamente qual notebook falhou, em vez de apontar apenas para a camada como um todo.
 
 ### Estrutura de tasks e dependências

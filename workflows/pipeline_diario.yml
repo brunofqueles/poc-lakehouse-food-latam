@@ -1,0 +1,200 @@
+# Definição do Workflow "Pipeline Diario - POC LATAM Food"
+#
+# Este arquivo é uma exportação (via "Edit as YAML" no Databricks Jobs UI)
+# da configuração real do Job em produção, incluindo as 16 tasks, suas
+# dependências, agendamento e notificações.
+#
+# Propósito: versionamento e documentação viva da orquestração do pipeline,
+# permitindo reconstruir o Job em outro workspace e servindo como primeiro
+# passo em direção a uma futura adoção de Databricks Asset Bundles (IaC),
+# onde este mesmo formato YAML seria a fonte de verdade "deployada" via
+# comando (`databricks bundle deploy`), em vez de configurado manualmente
+# pela interface.
+#
+# Este arquivo é uma cópia de referência: alterações feitas aqui NÃO são
+# aplicadas automaticamente ao Job real — a edição continua sendo feita
+# pela interface do Databricks Jobs, e este arquivo deve ser reexportado
+# e commitado sempre que a configuração do Job mudar.
+
+resources:
+  jobs:
+    Pipeline_Diario_POC_LATAM_Food:
+      name: Pipeline Diario - POC LATAM Food
+      description: "Pipeline diário definitivo do projeto POC LATAM Food. Orquestra as
+        16 tasks do fluxo completo: geração de vendas (3 países), ingestão Raw,
+        cópia Bronze, expurgo de TTL 48h, transformações Silver (SCD2, câmbio,
+        fato de vendas) e agregações Gold (por país, global, por produto).
+        Agendado diariamente às 06:00."
+      email_notifications:
+        on_failure:
+          - bruno.quelestech@outlook.com
+          - data-eng-alerts@empresa-fake.com
+        no_alert_for_skipped_runs: true
+      notification_settings:
+        no_alert_for_skipped_runs: true
+        no_alert_for_canceled_runs: true
+      schedule:
+        quartz_cron_expression: 25 0 6 * * ?
+        timezone_id: America/Sao_Paulo
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: gerar_vendas_argentina
+          notebook_task:
+            notebook_path: /Workspace/Users/bruno.quelestech@outlook.com/poc-lakehouse-food-latam/src/simulador/gerar_vendas.py
+            base_parameters:
+              pais: argentina
+              forcar_recriacao: "false"
+            source: WORKSPACE
+          max_retries: 2
+          min_retry_interval_millis: 900000
+          disable_auto_optimization: false
+        - task_key: gerar_vendas_brasil
+          notebook_task:
+            notebook_path: /Workspace/Users/bruno.quelestech@outlook.com/poc-lakehouse-food-latam/src/simulador/gerar_vendas.py
+            base_parameters:
+              pais: brasil
+              forcar_recriacao: "false"
+            source: WORKSPACE
+          max_retries: 2
+          min_retry_interval_millis: 900000
+          disable_auto_optimization: false
+        - task_key: gerar_vendas_mexico
+          notebook_task:
+            notebook_path: /Workspace/Users/bruno.quelestech@outlook.com/poc-lakehouse-food-latam/src/simulador/gerar_vendas.py
+            base_parameters:
+              pais: mexico
+              forcar_recriacao: "false"
+            source: WORKSPACE
+          max_retries: 2
+          min_retry_interval_millis: 900000
+          disable_auto_optimization: false
+        - task_key: ingestao_raw_dimensoes
+          notebook_task:
+            notebook_path: /Workspace/Users/bruno.quelestech@outlook.com/poc-lakehouse-food-latam/src/raw/ingestao_raw_dimensoes.py
+            source: WORKSPACE
+          max_retries: 2
+          min_retry_interval_millis: 900000
+          disable_auto_optimization: false
+        - task_key: bronze_dimensoes
+          depends_on:
+            - task_key: ingestao_raw_dimensoes
+          notebook_task:
+            notebook_path: /Workspace/Users/bruno.quelestech@outlook.com/poc-lakehouse-food-latam/src/bronze/bronze_dimensoes.py
+            source: WORKSPACE
+          max_retries: 2
+          min_retry_interval_millis: 900000
+          disable_auto_optimization: false
+        - task_key: ingestao_raw_vendas
+          depends_on:
+            - task_key: gerar_vendas_brasil
+            - task_key: gerar_vendas_argentina
+            - task_key: gerar_vendas_mexico
+          notebook_task:
+            notebook_path: /Workspace/Users/bruno.quelestech@outlook.com/poc-lakehouse-food-latam/src/raw/ingestao_raw_vendas.py
+            source: WORKSPACE
+          max_retries: 2
+          min_retry_interval_millis: 900000
+          disable_auto_optimization: false
+        - task_key: bronze_vendas
+          depends_on:
+            - task_key: ingestao_raw_vendas
+          notebook_task:
+            notebook_path: /Workspace/Users/bruno.quelestech@outlook.com/poc-lakehouse-food-latam/src/bronze/bronze_vendas.py
+            source: WORKSPACE
+          max_retries: 2
+          min_retry_interval_millis: 900000
+          disable_auto_optimization: false
+        - task_key: expurgo_raw
+          depends_on:
+            - task_key: bronze_dimensoes
+            - task_key: bronze_vendas
+          notebook_task:
+            notebook_path: /Workspace/Users/bruno.quelestech@outlook.com/poc-lakehouse-food-latam/src/raw/expurgo_raw.py
+            source: WORKSPACE
+          max_retries: 2
+          min_retry_interval_millis: 900000
+          disable_auto_optimization: false
+        - task_key: silver_cambio
+          depends_on:
+            - task_key: bronze_dimensoes
+            - task_key: bronze_vendas
+          notebook_task:
+            notebook_path: /Workspace/Users/bruno.quelestech@outlook.com/poc-lakehouse-food-latam/src/silver/silver_cambio.py
+            source: WORKSPACE
+          max_retries: 2
+          min_retry_interval_millis: 900000
+          disable_auto_optimization: false
+        - task_key: silver_lojas
+          depends_on:
+            - task_key: bronze_dimensoes
+          notebook_task:
+            notebook_path: /Workspace/Users/bruno.quelestech@outlook.com/poc-lakehouse-food-latam/src/silver/silver_lojas.py
+            source: WORKSPACE
+          max_retries: 2
+          min_retry_interval_millis: 900000
+          disable_auto_optimization: false
+        - task_key: silver_produtos
+          depends_on:
+            - task_key: bronze_dimensoes
+          notebook_task:
+            notebook_path: /Workspace/Users/bruno.quelestech@outlook.com/poc-lakehouse-food-latam/src/silver/silver_produtos.py
+            source: WORKSPACE
+          max_retries: 2
+          min_retry_interval_millis: 900000
+          disable_auto_optimization: false
+        - task_key: silver_representantes
+          depends_on:
+            - task_key: bronze_dimensoes
+          notebook_task:
+            notebook_path: /Workspace/Users/bruno.quelestech@outlook.com/poc-lakehouse-food-latam/src/silver/silver_representantes.py
+            source: WORKSPACE
+          max_retries: 2
+          min_retry_interval_millis: 900000
+          disable_auto_optimization: false
+        - task_key: silver_fato_vendas
+          depends_on:
+            - task_key: silver_produtos
+            - task_key: silver_lojas
+            - task_key: silver_representantes
+            - task_key: silver_cambio
+          notebook_task:
+            notebook_path: /Workspace/Users/bruno.quelestech@outlook.com/poc-lakehouse-food-latam/src/silver/silver_fato_vendas.py
+            source: WORKSPACE
+          max_retries: 2
+          min_retry_interval_millis: 900000
+          disable_auto_optimization: false
+        - task_key: gold_sales_by_country
+          depends_on:
+            - task_key: silver_fato_vendas
+          notebook_task:
+            notebook_path: /Workspace/Users/bruno.quelestech@outlook.com/poc-lakehouse-food-latam/src/gold/gold_sales_by_country.py
+            source: WORKSPACE
+          max_retries: 2
+          min_retry_interval_millis: 900000
+          disable_auto_optimization: false
+        - task_key: gold_sales_by_product
+          depends_on:
+            - task_key: silver_fato_vendas
+          notebook_task:
+            notebook_path: /Workspace/Users/bruno.quelestech@outlook.com/poc-lakehouse-food-latam/src/gold/gold_sales_by_product.py
+            source: WORKSPACE
+          max_retries: 2
+          min_retry_interval_millis: 900000
+          disable_auto_optimization: false
+        - task_key: gold_sales_global
+          depends_on:
+            - task_key: silver_fato_vendas
+          notebook_task:
+            notebook_path: /Workspace/Users/bruno.quelestech@outlook.com/poc-lakehouse-food-latam/src/gold/gold_sales_global.py
+            source: WORKSPACE
+          max_retries: 2
+          min_retry_interval_millis: 900000
+          disable_auto_optimization: false
+      tags:
+        ambiente: poc
+        centro_custo: pipeline-principal
+        projeto: latam-food-lakehouse
+        tipo: definitivo
+      queue:
+        enabled: true
+      performance_target: PERFORMANCE_OPTIMIZED
