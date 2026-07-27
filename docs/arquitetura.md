@@ -371,6 +371,19 @@ for schema in ["silver", "gold"]:
 
 **Por que documentar código que não roda:** o valor deste trecho não está em sua execução, mas em demonstrar domínio técnico de como a governança de acesso seria implementada de forma programática (via PySpark, consistente com o restante do pipeline) em um ambiente corporativo real — uma habilidade tão relevante quanto a construção do pipeline em si, mesmo quando o ambiente de desenvolvimento disponível impõe limitações de infraestrutura administrativa.
 
+### 9.1. Relatório de governança de tags (executável e real)
+
+Diferente do RBAC (bloqueado pela ausência de Account Console), a **tagueação de objetos do Unity Catalog** é uma funcionalidade de governança que **funciona plenamente** no Free Edition — e foi implementada e validada no notebook [`src/governance/relatorio_governanca.py`](../src/governance/relatorio_governanca.py).
+
+**O que o notebook faz:**
+1. Aplica uma nova tag `camada` em cada schema (`landing`, `raw`, `bronze`, `silver`, `gold`), identificando explicitamente a qual etapa da arquitetura Medallion cada schema pertence — complementando as tags de projeto já existentes no catalog (`ambiente`, `projeto`)
+2. Consulta as tags reais aplicadas via `poc_latam_food.information_schema.catalog_tags`, `schema_tags` e `table_tags` — tabelas de sistema do Unity Catalog que expõem metadados de tagueação de forma consultável via SQL/PySpark
+3. Consolida tudo em uma única tabela de relatório (`poc_latam_food.gold.governance_tags_report`), unindo os três níveis (catalog, schema, table) com uma coluna indicando a granularidade de cada linha
+
+**Limitação identificada e documentada com transparência:** as tags aplicadas ao **Job de orquestração** (`ambiente`, `projeto`, `tipo`, `centro_custo`, configuradas na tela de Jobs & Pipelines) não são consultáveis por este mesmo information_schema — elas pertencem à camada de Jobs/Workflows do Databricks, uma superfície de metadados distinta da do Unity Catalog. Essas tags são documentadas manualmente no próprio notebook, como complemento textual ao relatório, deixando explícita essa distinção entre dois tipos de metadado geridos por partes diferentes da plataforma.
+
+**Por que herdar via schema, em vez de tagueamento por tabela:** tags aplicadas em um catalog ou schema no Unity Catalog são **herdadas automaticamente** por todos os objetos filhos — tagueando 5 schemas obtém-se a mesma cobertura de "identificar a camada de cada tabela" que tagueando dezenas de tabelas individualmente, com muito menos esforço de manutenção.
+
 ---
 
 ## 10. Orquestração
