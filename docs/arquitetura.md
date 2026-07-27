@@ -340,6 +340,37 @@ Testamos a conectividade de saída do Databricks Free Edition com sucesso, confi
 - **Segregação por camada**: dados brutos (Raw/Bronze) ficam restritos à Engenharia; times de negócio só acessam dados já tratados e validados (Silver/Gold)
 - **Somente leitura para consumo**: times de Gestão e Analytics nunca têm permissão de escrita, evitando alteração acidental de dados de origem
 
+### Implementação de referência (PySpark) — não executável neste ambiente
+
+**Confirmação da limitação:** a documentação oficial do Databricks Free Edition confirma explicitamente a ausência de acesso ao Account Console e às APIs em nível de conta — é lá que identidades (usuários, grupos, service principals) são gerenciadas. Sem esse acesso, não é possível criar os grupos (`arquitetura`, `engenharia_dados`, `gestao`, `analytics_bi`) como identidades reais reconhecidas pelo Databricks, mesmo que fictícios — qualquer comando `GRANT ... TO grupo_x` falharia, pois `grupo_x` precisaria existir previamente como principal válido.
+
+Ainda assim, documenta-se abaixo a implementação de referência **em PySpark** (consistente com a stack usada em todo o projeto), como ela seria escrita e executada em um ambiente Premium/Enterprise com Account Console disponível:
+
+```python
+# Governança de acesso (RBAC) - implementação de referência
+# Não executável no Databricks Free Edition (ausência de Account Console
+# para criação de grupos reais). Documentado como especificação técnica.
+
+# --- Arquitetura: admin total do catalog ---
+spark.sql("GRANT ALL PRIVILEGES ON CATALOG poc_latam_food TO `arquitetura`")
+
+# --- Engenharia de Dados: leitura/escrita em landing, bronze e silver ---
+spark.sql("GRANT USE CATALOG ON CATALOG poc_latam_food TO `engenharia_dados`")
+for schema in ["landing", "bronze", "silver"]:
+    spark.sql(f"GRANT USE SCHEMA, CREATE TABLE, MODIFY, SELECT ON SCHEMA poc_latam_food.{schema} TO `engenharia_dados`")
+
+# --- Gestão / Negócio: somente leitura na Gold ---
+spark.sql("GRANT USE CATALOG ON CATALOG poc_latam_food TO `gestao`")
+spark.sql("GRANT USE SCHEMA, SELECT ON SCHEMA poc_latam_food.gold TO `gestao`")
+
+# --- Analytics / BI: somente leitura em Silver e Gold ---
+spark.sql("GRANT USE CATALOG ON CATALOG poc_latam_food TO `analytics_bi`")
+for schema in ["silver", "gold"]:
+    spark.sql(f"GRANT USE SCHEMA, SELECT ON SCHEMA poc_latam_food.{schema} TO `analytics_bi`")
+```
+
+**Por que documentar código que não roda:** o valor deste trecho não está em sua execução, mas em demonstrar domínio técnico de como a governança de acesso seria implementada de forma programática (via PySpark, consistente com o restante do pipeline) em um ambiente corporativo real — uma habilidade tão relevante quanto a construção do pipeline em si, mesmo quando o ambiente de desenvolvimento disponível impõe limitações de infraestrutura administrativa.
+
 ---
 
 ## 10. Orquestração
